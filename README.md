@@ -41,17 +41,18 @@ the CSV files that the R modelling scripts consume.
 Install dependencies:
 pip install numpy pandas matplotlib seaborn scipy scikit-learn arch
 
-Run the main Python script:
-python src/main.py
+Open and run the Jupyter notebook:
+Python/XLK_Forecasting_Fear&Greed.ipynb
 
-This generates the cleaned and processed CSV files in the data/ folder.
+This generates the CSV files required by the R modelling script.
 
 ### Step 2 — R (GJR-GARCH-X Modelling)
 
 Open RStudio and install required packages:
 install.packages(c("rugarch", "moments", "FinTS", "car"))
 
-Run the R scripts in order after Step 1 has completed.
+Open and knit or run the R Markdown file:
+R-Studio/XLK_Forecasting.Rmd
 
 ## Data Sources
 
