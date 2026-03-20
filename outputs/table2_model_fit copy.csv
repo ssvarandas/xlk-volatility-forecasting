@@ -1,0 +1,6 @@
+"Model","LogLikelihood","AIC","BIC","N_Parameters","Delta_LL"
+"Baseline GJR-GARCH",8315.11,-6.399,-6.3855,6,0
+"VIX-GARCH",8356.32,-6.43,-6.4142,7,41.21
+"FearOrth-GARCH",8315.09,-6.3982,-6.3824,7,-0.02
+"FearScaled-GARCH",8315.98,-6.3989,-6.3831,7,0.87
+"VIX+Fear-GARCH",8359.03,-6.4313,-6.4132,8,43.92

@@ -1,0 +1,6 @@
+"Model","Joint_Stat","CV_10pct","CV_5pct","Stable_5pct"
+"Baseline",5.2268,1.49,1.68,"Fail"
+"VIX",5.0079,1.69,1.9,"Fail"
+"FearOrth",6.5186,1.69,1.9,"Fail"
+"FearScaled",27.8507,1.69,1.9,"Fail"
+"VIX+FearOrth",10.9466,1.89,2.11,"Fail"

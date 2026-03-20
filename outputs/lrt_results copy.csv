@@ -1,0 +1,6 @@
+"Restricted","Unrestricted","LR_Statistic","DF","P_Value","Significant_5pct"
+"Baseline","GJR-VIX",82.4156,1,0,TRUE
+"Baseline","GJR-FearOrth",-0.0466,1,1,FALSE
+"Baseline","GJR-FearScaled",1.7411,1,0.186999,FALSE
+"GJR-VIX","GJR-VIX+FearOrth",5.4338,1,0.01975,TRUE
+"Baseline","GJR-VIX+FearOrth",87.8494,2,0,TRUE

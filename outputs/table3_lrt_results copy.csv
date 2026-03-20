@@ -1,0 +1,6 @@
+"Restricted_Model","Unrestricted_Model","LR_Statistic","DF","P_Value","Decision","Note"
+"Baseline","VIX-GARCH",82.4156,1,0,"Reject H0",""
+"Baseline","FearOrth-GARCH",-0.0466,1,1,"Fail to Reject H0","LR < 0 due to optimizer precision; effectively zero improvement"
+"Baseline","FearScaled-GARCH",1.7411,1,0.186999,"Fail to Reject H0",""
+"VIX-GARCH","VIX+FearOrth-GARCH",5.4338,1,0.01975,"Reject H0",""
+"Baseline","VIX+FearOrth-GARCH",87.8494,2,0,"Reject H0",""

@@ -1,0 +1,8 @@
+"Diagnostic","Baseline","VIX"
+"Persistence (alpha+gamma/2+beta)","0.9679","0.9244"
+"Half-life (days)","21.2","8.8"
+"Mean Conditional Volatility","0.0114","0.0111"
+"Leverage Effect (gamma > 0)","Yes","Yes"
+"Fat Tails (nu < 30)","Yes (nu=5.50)","Yes (nu=6.12)"
+"No Serial Correlation","Pass","Pass"
+"No ARCH Effects","Pass","Pass"
