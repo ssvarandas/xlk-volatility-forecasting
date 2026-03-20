@@ -57,7 +57,7 @@ R-Studio/XLK_Forecasting.Rmd
 ## Data Sources
 
 - XLK price data: Yahoo Finance
-- Implied volatility: CBOE VIX Index (Federal Reserve Economic Data, FRED)
+- Implied volatility: CBOE VIX Index (Federal Reserve Economic Data, FRED) obtained from: https://github.com/whit3rabbit/fear-greed-data
 - Sentiment indicator: CNN Fear & Greed Index
   Historical data obtained from: https://github.com/whit3rabbit/fear-greed-data
 
