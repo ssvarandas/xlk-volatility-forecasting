@@ -1,0 +1,1345 @@
+---
+title: "Thesis GARCH Analysis"
+output: html_notebook
+---
+
+```{r}
+setwd("/Users/simaovarandas/Desktop/DATA Thesis/R-Files")
+getwd()
+list.files()  # should show train_data_for_R.csv, test_data_for_R.csv, etc.
+
+```
+
+
+```{r}
+install.packages("moments")
+install.packages("rugarch")
+install.packages("FinTS")
+install.packages("car")
+```
+
+
+```{r Garch Analysis and Implementation}
+
+# ============================================================================
+# THESIS: GJR-GARCH-X ANALYSIS WITH LIKELIHOOD RATIO TESTS
+# ============================================================================
+
+library(rugarch)
+library(readr)
+
+train <- read_csv("train_data_for_R.csv")
+
+cat("Training data loaded:", nrow(train), "observations\n")
+cat("Columns:", colnames(train), "\n")
+head(train)
+summary(train[, c("Log_Return", "VIXScaled", "FearOrth")])
+
+
+# ============================================================================
+# MODEL 1: BASELINE GJR-GARCH
+# ============================================================================
+
+cat("\n========================================\n")
+cat("MODEL 1: BASELINE GJR-GARCH\n")
+cat("========================================\n")
+
+spec_baseline <- ugarchspec(
+  variance.model = list(model = "gjrGARCH", garchOrder = c(1, 1)),
+  mean.model     = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "std"
+)
+
+fit_baseline <- ugarchfit(spec = spec_baseline, data = train$Log_Return, solver = "hybrid")
+print(fit_baseline)
+
+baseline_ll   <- likelihood(fit_baseline)
+baseline_aic  <- infocriteria(fit_baseline)[1]
+baseline_bic  <- infocriteria(fit_baseline)[2]
+baseline_npar <- length(coef(fit_baseline))
+
+cat(sprintf("\nBaseline Log-Likelihood: %.4f\n", baseline_ll))
+cat(sprintf("Baseline AIC: %.4f\n", baseline_aic))
+cat(sprintf("Baseline BIC: %.4f\n", baseline_bic))
+
+
+# ============================================================================
+# MODEL 2: GJR-GARCH-X WITH VIX
+# ============================================================================
+
+cat("\n========================================\n")
+cat("MODEL 2: GJR-GARCH-X WITH VIX\n")
+cat("========================================\n")
+
+spec_vix <- ugarchspec(
+  variance.model = list(
+    model = "gjrGARCH", garchOrder = c(1, 1),
+    external.regressors = as.matrix(train$VIXScaled)
+  ),
+  mean.model     = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "std"
+)
+
+fit_vix <- ugarchfit(spec = spec_vix, data = train$Log_Return, solver = "hybrid")
+print(fit_vix)
+
+vix_ll   <- likelihood(fit_vix)
+vix_aic  <- infocriteria(fit_vix)[1]
+vix_bic  <- infocriteria(fit_vix)[2]
+vix_npar <- length(coef(fit_vix))
+
+cat(sprintf("\nVIX Log-Likelihood: %.4f\n", vix_ll))
+cat(sprintf("VIX AIC: %.4f\n", vix_aic))
+cat(sprintf("VIX BIC: %.4f\n", vix_bic))
+cat(sprintf("Improvement over baseline: %.4f\n", vix_ll - baseline_ll))
+
+
+# ============================================================================
+# MODEL 3: GJR-GARCH-X WITH FEARORTH
+# ============================================================================
+
+cat("\n========================================\n")
+cat("MODEL 3: GJR-GARCH-X WITH FEARORTH\n")
+cat("========================================\n")
+
+spec_fear <- ugarchspec(
+  variance.model = list(
+    model = "gjrGARCH", garchOrder = c(1, 1),
+    external.regressors = as.matrix(train$FearOrth)
+  ),
+  mean.model     = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "std"
+)
+
+fit_fear <- ugarchfit(spec = spec_fear, data = train$Log_Return, solver = "hybrid")
+print(fit_fear)
+
+fear_ll   <- likelihood(fit_fear)
+fear_aic  <- infocriteria(fit_fear)[1]
+fear_bic  <- infocriteria(fit_fear)[2]
+fear_npar <- length(coef(fit_fear))
+
+cat(sprintf("\nFearOrth Log-Likelihood: %.4f\n", fear_ll))
+cat(sprintf("FearOrth AIC: %.4f\n", fear_aic))
+cat(sprintf("FearOrth BIC: %.4f\n", fear_bic))
+cat(sprintf("Improvement over baseline: %.4f\n", fear_ll - baseline_ll))
+
+
+# ============================================================================
+# MODEL 3B: GJR-GARCH-X WITH RAW FEARSCALED (NO ORTHOGONALIZATION)
+# ============================================================================
+
+cat("\n========================================\n")
+cat("MODEL 3B: GJR-GARCH-X WITH RAW FEARSCALED\n")
+cat("========================================\n")
+
+spec_fear_raw <- ugarchspec(
+  variance.model = list(
+    model = "gjrGARCH", garchOrder = c(1, 1),
+    external.regressors = as.matrix(train$FearScaled)
+  ),
+  mean.model     = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "std"
+)
+
+fit_fear_raw <- ugarchfit(spec = spec_fear_raw, data = train$Log_Return, solver = "hybrid")
+print(fit_fear_raw)
+
+fear_raw_ll   <- likelihood(fit_fear_raw)
+fear_raw_aic  <- infocriteria(fit_fear_raw)[1]
+fear_raw_bic  <- infocriteria(fit_fear_raw)[2]
+fear_raw_npar <- length(coef(fit_fear_raw))
+
+cat(sprintf("\nFearScaled (raw) Log-Likelihood: %.4f\n", fear_raw_ll))
+cat(sprintf("FearScaled (raw) AIC: %.4f\n", fear_raw_aic))
+cat(sprintf("FearScaled (raw) BIC: %.4f\n", fear_raw_bic))
+cat(sprintf("Improvement over baseline: %.4f\n", fear_raw_ll - baseline_ll))
+cat(sprintf("vs FearOrth model: %.4f\n", fear_raw_ll - fear_ll))
+
+
+# ============================================================================
+# MODEL 4: GJR-GARCH-X WITH VIX + FEARORTH
+# ============================================================================
+
+cat("\n========================================\n")
+cat("MODEL 4: GJR-GARCH-X WITH VIX + FEARORTH\n")
+cat("========================================\n")
+
+exog_both <- as.matrix(train[, c("VIXScaled", "FearOrth")])
+
+spec_both <- ugarchspec(
+  variance.model = list(
+    model = "gjrGARCH", garchOrder = c(1, 1),
+    external.regressors = exog_both
+  ),
+  mean.model     = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "std"
+)
+
+fit_both <- ugarchfit(spec = spec_both, data = train$Log_Return, solver = "hybrid")
+print(fit_both)
+
+both_ll   <- likelihood(fit_both)
+both_aic  <- infocriteria(fit_both)[1]
+both_bic  <- infocriteria(fit_both)[2]
+both_npar <- length(coef(fit_both))
+
+cat(sprintf("\nBoth Log-Likelihood: %.4f\n", both_ll))
+cat(sprintf("Both AIC: %.4f\n", both_aic))
+cat(sprintf("Both BIC: %.4f\n", both_bic))
+cat(sprintf("Improvement over baseline: %.4f\n", both_ll - baseline_ll))
+
+
+# ============================================================================
+# MODEL COMPARISON
+# ============================================================================
+
+cat("\n========================================\n")
+cat("MODEL COMPARISON\n")
+cat("========================================\n")
+
+comparison <- data.frame(
+  Model    = c("Baseline", "GJR-VIX", "GJR-FearOrth", "GJR-FearScaled", "GJR-VIX+FearOrth"),
+  LogLik   = c(baseline_ll, vix_ll, fear_ll, fear_raw_ll, both_ll),
+  AIC      = c(baseline_aic, vix_aic, fear_aic, fear_raw_aic, both_aic),
+  BIC      = c(baseline_bic, vix_bic, fear_bic, fear_raw_bic, both_bic),
+  N_Params = c(baseline_npar, vix_npar, fear_npar, fear_raw_npar, both_npar)
+)
+print(comparison)
+
+cat("\nBest model by AIC:", comparison$Model[which.min(comparison$AIC)], "\n")
+cat("Best model by BIC:", comparison$Model[which.min(comparison$BIC)], "\n")
+
+
+# ============================================================================
+# LIKELIHOOD RATIO TESTS
+# ============================================================================
+
+cat("\n========================================\n")
+cat("LIKELIHOOD RATIO TESTS\n")
+cat("========================================\n")
+
+cat("\nNote: LRT is the standard nested-model test for GARCH (MLE).\n")
+cat("H0: the restricted model is adequate.\n")
+cat("H1: the unrestricted model provides a significant improvement.\n")
+cat("LR statistic = 2 * (LL_unrestricted - LL_restricted),\n")
+cat("distributed chi-squared with df = difference in parameters.\n\n")
+
+run_lrt <- function(ll_restricted, ll_unrestricted,
+                    npar_restricted, npar_unrestricted,
+                    label_restricted, label_unrestricted) {
+
+  df      <- npar_unrestricted - npar_restricted
+  lr_stat <- 2 * (ll_unrestricted - ll_restricted)
+  p_value <- pchisq(lr_stat, df = df, lower.tail = FALSE)
+
+  cat(sprintf("--- LRT: %s vs %s ---\n", label_restricted, label_unrestricted))
+  cat(sprintf("  LR statistic       : %.4f\n", lr_stat))
+  cat(sprintf("  Degrees of freedom : %d\n", df))
+  cat(sprintf("  p-value            : %.6f\n", p_value))
+
+  if (p_value < 0.01) {
+    cat(sprintf("  Result: %s significantly improves fit over %s (p < 0.01)\n\n",
+                label_unrestricted, label_restricted))
+  } else if (p_value < 0.05) {
+    cat(sprintf("  Result: %s improves fit over %s (p < 0.05)\n\n",
+                label_unrestricted, label_restricted))
+  } else if (p_value < 0.10) {
+    cat(sprintf("  Result: %s marginally improves fit over %s (p < 0.10)\n\n",
+                label_unrestricted, label_restricted))
+  } else {
+    cat(sprintf("  Result: %s does NOT significantly improve fit over %s (p = %.4f)\n\n",
+                label_unrestricted, label_restricted, p_value))
+  }
+
+  return(invisible(list(lr_stat = lr_stat, df = df, p_value = p_value)))
+}
+
+# Test 1: Does VIX add value over baseline?
+lrt_vix <- run_lrt(
+  baseline_ll, vix_ll,
+  baseline_npar, vix_npar,
+  "Baseline", "GJR-VIX"
+)
+
+# Test 2: Does FearOrth add value over baseline?
+lrt_fear <- run_lrt(
+  baseline_ll, fear_ll,
+  baseline_npar, fear_npar,
+  "Baseline", "GJR-FearOrth"
+)
+
+# Test 3: Does raw FearScaled add value over baseline?
+lrt_fear_raw <- run_lrt(
+  baseline_ll, fear_raw_ll,
+  baseline_npar, fear_raw_npar,
+  "Baseline", "GJR-FearScaled"
+)
+
+# Test 4: Does FearOrth add value on top of VIX? (key research question)
+lrt_both_vs_vix <- run_lrt(
+  vix_ll, both_ll,
+  vix_npar, both_npar,
+  "GJR-VIX", "GJR-VIX+FearOrth"
+)
+
+# Test 5: Does VIX+FearOrth add value over baseline?
+lrt_both_vs_base <- run_lrt(
+  baseline_ll, both_ll,
+  baseline_npar, both_npar,
+  "Baseline", "GJR-VIX+FearOrth"
+)
+
+# Direct comparison: FearOrth vs FearScaled (non-nested, use AIC/BIC)
+cat("--- Direct comparison: GJR-FearOrth vs GJR-FearScaled (non-nested) ---\n")
+cat("  Note: same number of parameters, LRT not applicable. Use AIC/BIC.\n")
+cat(sprintf("  FearOrth   LL: %.4f  AIC: %.4f  BIC: %.4f\n", fear_ll, fear_aic, fear_bic))
+cat(sprintf("  FearScaled LL: %.4f  AIC: %.4f  BIC: %.4f\n", fear_raw_ll, fear_raw_aic, fear_raw_bic))
+if (fear_raw_ll > fear_ll) {
+  cat("  Raw FearScaled fits better in-sample than FearOrth\n")
+  cat("  Interpretation: the VIX-overlapping component of sentiment adds in-sample fit\n\n")
+} else {
+  cat("  FearOrth fits better or equally - orthogonalization did not lose information\n\n")
+}
+
+# Save LRT results
+lrt_table <- data.frame(
+  Restricted   = c("Baseline", "Baseline", "Baseline", "GJR-VIX", "Baseline"),
+  Unrestricted = c("GJR-VIX", "GJR-FearOrth", "GJR-FearScaled",
+                   "GJR-VIX+FearOrth", "GJR-VIX+FearOrth"),
+  LR_Statistic = round(c(lrt_vix$lr_stat, lrt_fear$lr_stat, lrt_fear_raw$lr_stat,
+                          lrt_both_vs_vix$lr_stat, lrt_both_vs_base$lr_stat), 4),
+  DF           = c(lrt_vix$df, lrt_fear$df, lrt_fear_raw$df,
+                   lrt_both_vs_vix$df, lrt_both_vs_base$df),
+  P_Value      = round(c(lrt_vix$p_value, lrt_fear$p_value, lrt_fear_raw$p_value,
+                          lrt_both_vs_vix$p_value, lrt_both_vs_base$p_value), 6),
+  Significant_5pct = c(lrt_vix$p_value < 0.05, lrt_fear$p_value < 0.05,
+                        lrt_fear_raw$p_value < 0.05, lrt_both_vs_vix$p_value < 0.05,
+                        lrt_both_vs_base$p_value < 0.05)
+)
+
+write.csv(lrt_table, "lrt_results.csv", row.names = FALSE)
+cat("LRT results saved: lrt_results.csv\n")
+
+cat("\n========================================\n")
+cat("GJR-GARCH-X ESTIMATION AND TESTING COMPLETE\n")
+cat("========================================\n")
+
+
+```
+
+```{r}
+# ============================================================================
+# VISUALIZATIONS AND SUMMARY TABLES
+# ============================================================================
+
+library(ggplot2)
+library(moments)
+library(readr)
+
+test <- read_csv("test_data_for_R.csv")
+cat("Test data loaded:", nrow(test), "observations\n")
+
+cat("\n========================================\n")
+cat("GENERATING VISUALIZATIONS AND TABLES\n")
+cat("========================================\n")
+
+
+# ============================================================================
+# TABLE 1: MODEL PARAMETER COMPARISON
+# ============================================================================
+
+cat("\nCreating Table 1: Model Parameter Comparison...\n")
+
+param_table <- data.frame(
+  Parameter = c("mu", "ar1", "omega", "alpha1", "beta1", "gamma1",
+                "delta_VIX", "delta_Fear", "shape"),
+  Baseline = c(
+    sprintf("%.6f", coef(fit_baseline)["mu"]),
+    sprintf("%.6f", coef(fit_baseline)["ar1"]),
+    sprintf("%.2e", coef(fit_baseline)["omega"]),
+    sprintf("%.6f", coef(fit_baseline)["alpha1"]),
+    sprintf("%.6f", coef(fit_baseline)["beta1"]),
+    sprintf("%.6f", coef(fit_baseline)["gamma1"]),
+    "-", "-",
+    sprintf("%.4f", coef(fit_baseline)["shape"])
+  ),
+  VIX = c(
+    sprintf("%.6f", coef(fit_vix)["mu"]),
+    sprintf("%.6f", coef(fit_vix)["ar1"]),
+    sprintf("%.2e", coef(fit_vix)["omega"]),
+    sprintf("%.6f", coef(fit_vix)["alpha1"]),
+    sprintf("%.6f", coef(fit_vix)["beta1"]),
+    sprintf("%.6f", coef(fit_vix)["gamma1"]),
+    sprintf("%.2e", coef(fit_vix)["vxreg1"]),
+    "-",
+    sprintf("%.4f", coef(fit_vix)["shape"])
+  ),
+  FearOrth = c(
+    sprintf("%.6f", coef(fit_fear)["mu"]),
+    sprintf("%.6f", coef(fit_fear)["ar1"]),
+    sprintf("%.2e", coef(fit_fear)["omega"]),
+    sprintf("%.6f", coef(fit_fear)["alpha1"]),
+    sprintf("%.6f", coef(fit_fear)["beta1"]),
+    sprintf("%.6f", coef(fit_fear)["gamma1"]),
+    "-",
+    sprintf("%.2e", coef(fit_fear)["vxreg1"]),
+    sprintf("%.4f", coef(fit_fear)["shape"])
+  ),
+  FearScaled = c(
+    sprintf("%.6f", coef(fit_fear_raw)["mu"]),
+    sprintf("%.6f", coef(fit_fear_raw)["ar1"]),
+    sprintf("%.2e", coef(fit_fear_raw)["omega"]),
+    sprintf("%.6f", coef(fit_fear_raw)["alpha1"]),
+    sprintf("%.6f", coef(fit_fear_raw)["beta1"]),
+    sprintf("%.6f", coef(fit_fear_raw)["gamma1"]),
+    "-",
+    sprintf("%.2e", coef(fit_fear_raw)["vxreg1"]),
+    sprintf("%.4f", coef(fit_fear_raw)["shape"])
+  ),
+  Both = c(
+    sprintf("%.6f", coef(fit_both)["mu"]),
+    sprintf("%.6f", coef(fit_both)["ar1"]),
+    sprintf("%.2e", coef(fit_both)["omega"]),
+    sprintf("%.6f", coef(fit_both)["alpha1"]),
+    sprintf("%.6f", coef(fit_both)["beta1"]),
+    sprintf("%.6f", coef(fit_both)["gamma1"]),
+    sprintf("%.2e", coef(fit_both)["vxreg1"]),
+    sprintf("%.2e", coef(fit_both)["vxreg2"]),
+    sprintf("%.4f", coef(fit_both)["shape"])
+  )
+)
+
+write.csv(param_table, "table1_model_parameters.csv", row.names = FALSE)
+print(param_table)
+cat("\nTable 1 saved: table1_model_parameters.csv\n")
+
+
+# ============================================================================
+# TABLE 2: MODEL FIT STATISTICS (includes Model 3B)
+# ============================================================================
+
+cat("\nCreating Table 2: Model Fit Statistics...\n")
+
+fit_table <- data.frame(
+  Model = c("Baseline GJR-GARCH", "VIX-GARCH", "FearOrth-GARCH",
+            "FearScaled-GARCH", "VIX+Fear-GARCH"),
+  LogLikelihood = round(c(baseline_ll, vix_ll, fear_ll, fear_raw_ll, both_ll), 2),
+  AIC           = round(c(baseline_aic, vix_aic, fear_aic, fear_raw_aic, both_aic), 4),
+  BIC           = round(c(baseline_bic, vix_bic, fear_bic, fear_raw_bic, both_bic), 4),
+  N_Parameters  = c(baseline_npar, vix_npar, fear_npar, fear_raw_npar, both_npar),
+  Delta_LL      = round(c(0, vix_ll - baseline_ll, fear_ll - baseline_ll,
+                           fear_raw_ll - baseline_ll, both_ll - baseline_ll), 2)
+)
+
+write.csv(fit_table, "table2_model_fit.csv", row.names = FALSE)
+print(fit_table)
+cat("\nTable 2 saved: table2_model_fit.csv\n")
+
+
+# ============================================================================
+# TABLE 3: LIKELIHOOD RATIO TEST RESULTS (includes FearScaled, flags negative LR)
+# ============================================================================
+
+cat("\nCreating Table 3: Likelihood Ratio Test Results...\n")
+
+# Note: FearOrth LR is negative due to numerical optimizer precision (LL slightly
+# below baseline). p-value of 1.0 is correct: no improvement over baseline.
+lrt_display <- data.frame(
+  Restricted_Model   = c("Baseline", "Baseline", "Baseline",
+                          "VIX-GARCH", "Baseline"),
+  Unrestricted_Model = c("VIX-GARCH", "FearOrth-GARCH", "FearScaled-GARCH",
+                          "VIX+FearOrth-GARCH", "VIX+FearOrth-GARCH"),
+  LR_Statistic = round(c(lrt_vix$lr_stat, lrt_fear$lr_stat, lrt_fear_raw$lr_stat,
+                          lrt_both_vs_vix$lr_stat, lrt_both_vs_base$lr_stat), 4),
+  DF = c(lrt_vix$df, lrt_fear$df, lrt_fear_raw$df,
+          lrt_both_vs_vix$df, lrt_both_vs_base$df),
+  P_Value = round(c(lrt_vix$p_value, lrt_fear$p_value, lrt_fear_raw$p_value,
+                     lrt_both_vs_vix$p_value, lrt_both_vs_base$p_value), 6),
+  Decision = c(
+    ifelse(lrt_vix$p_value        < 0.05, "Reject H0", "Fail to Reject H0"),
+    ifelse(lrt_fear$p_value       < 0.05, "Reject H0", "Fail to Reject H0"),
+    ifelse(lrt_fear_raw$p_value   < 0.05, "Reject H0", "Fail to Reject H0"),
+    ifelse(lrt_both_vs_vix$p_value < 0.05, "Reject H0", "Fail to Reject H0"),
+    ifelse(lrt_both_vs_base$p_value < 0.05, "Reject H0", "Fail to Reject H0")
+  ),
+  Note = c("", "LR < 0 due to optimizer precision; effectively zero improvement",
+            "", "", "")
+)
+
+write.csv(lrt_display, "table3_lrt_results.csv", row.names = FALSE)
+print(lrt_display)
+cat("\nTable 3 saved: table3_lrt_results.csv\n")
+
+
+# ============================================================================
+# TABLE 4: GARCH DIAGNOSTICS (WITH FORMAL TEST STATISTICS)
+# ============================================================================
+
+cat("\nCreating Table 4: GARCH Diagnostics...\n")
+
+get_lb_stat <- function(fit, lag = 10, squared = FALSE) {
+  resid_std <- residuals(fit, standardize = TRUE)
+  if (squared) resid_std <- resid_std^2
+  lb <- Box.test(resid_std, lag = lag, type = "Ljung-Box")
+  return(list(stat = round(lb$statistic, 4), pval = round(lb$p.value, 4)))
+}
+
+get_arch_stat <- function(fit, lags = 5) {
+  resid_std <- residuals(fit, standardize = TRUE)
+  arch_test <- FinTS::ArchTest(resid_std, lags = lags)
+  return(list(stat = round(arch_test$statistic, 4), pval = round(arch_test$p.value, 4)))
+}
+
+lb_base    <- get_lb_stat(fit_baseline, squared = FALSE)
+lb_vix     <- get_lb_stat(fit_vix,      squared = FALSE)
+lb_fear    <- get_lb_stat(fit_fear,     squared = FALSE)
+lb_scaled  <- get_lb_stat(fit_fear_raw,   squared = FALSE)
+lb_both    <- get_lb_stat(fit_both,     squared = FALSE)
+
+lb2_base   <- get_lb_stat(fit_baseline, squared = TRUE)
+lb2_vix    <- get_lb_stat(fit_vix,      squared = TRUE)
+lb2_fear   <- get_lb_stat(fit_fear,     squared = TRUE)
+lb2_scaled <- get_lb_stat(fit_fear_raw,   squared = TRUE)
+lb2_both   <- get_lb_stat(fit_both,     squared = TRUE)
+
+arch_base   <- get_arch_stat(fit_baseline)
+arch_vix    <- get_arch_stat(fit_vix)
+arch_fear   <- get_arch_stat(fit_fear)
+arch_scaled <- get_arch_stat(fit_fear_raw)
+arch_both   <- get_arch_stat(fit_both)
+
+persistence_base   <- coef(fit_baseline)["alpha1"] + coef(fit_baseline)["gamma1"]/2 + coef(fit_baseline)["beta1"]
+persistence_vix    <- coef(fit_vix)["alpha1"]      + coef(fit_vix)["gamma1"]/2      + coef(fit_vix)["beta1"]
+persistence_fear   <- coef(fit_fear)["alpha1"]      + coef(fit_fear)["gamma1"]/2     + coef(fit_fear)["beta1"]
+persistence_scaled <- coef(fit_fear_raw)["alpha1"]    + coef(fit_fear_raw)["gamma1"]/2   + coef(fit_fear_raw)["beta1"]
+persistence_both   <- coef(fit_both)["alpha1"]      + coef(fit_both)["gamma1"]/2     + coef(fit_both)["beta1"]
+
+halflife_base   <- log(0.5) / log(persistence_base)
+halflife_vix    <- log(0.5) / log(persistence_vix)
+halflife_fear   <- log(0.5) / log(persistence_fear)
+halflife_scaled <- log(0.5) / log(persistence_scaled)
+halflife_both   <- log(0.5) / log(persistence_both)
+
+fmt_test <- function(stat, pval) {
+  sig <- ifelse(pval < 0.01, "**", ifelse(pval < 0.05, "*", ""))
+  sprintf("%.3f (p=%.3f)%s", stat, pval, sig)
+}
+
+diagnostics_table <- data.frame(
+  Diagnostic = c(
+    "Persistence (alpha + gamma/2 + beta)",
+    "Shock half-life (days)",
+    "Mean conditional volatility",
+    "Leverage effect gamma1",
+    "Shape parameter (nu)",
+    "LB test on std residuals [stat (p)]",
+    "LB test on sq. std residuals [stat (p)]",
+    "ARCH LM test (5 lags) [stat (p)]"
+  ),
+  Baseline = c(
+    sprintf("%.4f", persistence_base),
+    sprintf("%.1f", halflife_base),
+    sprintf("%.6f", mean(sigma(fit_baseline))),
+    sprintf("%.4f", coef(fit_baseline)["gamma1"]),
+    sprintf("%.4f", coef(fit_baseline)["shape"]),
+    fmt_test(lb_base$stat,   lb_base$pval),
+    fmt_test(lb2_base$stat,  lb2_base$pval),
+    fmt_test(arch_base$stat, arch_base$pval)
+  ),
+  VIX_GARCH = c(
+    sprintf("%.4f", persistence_vix),
+    sprintf("%.1f", halflife_vix),
+    sprintf("%.6f", mean(sigma(fit_vix))),
+    sprintf("%.4f", coef(fit_vix)["gamma1"]),
+    sprintf("%.4f", coef(fit_vix)["shape"]),
+    fmt_test(lb_vix$stat,   lb_vix$pval),
+    fmt_test(lb2_vix$stat,  lb2_vix$pval),
+    fmt_test(arch_vix$stat, arch_vix$pval)
+  ),
+  FearOrth_GARCH = c(
+    sprintf("%.4f", persistence_fear),
+    sprintf("%.1f", halflife_fear),
+    sprintf("%.6f", mean(sigma(fit_fear))),
+    sprintf("%.4f", coef(fit_fear)["gamma1"]),
+    sprintf("%.4f", coef(fit_fear)["shape"]),
+    fmt_test(lb_fear$stat,   lb_fear$pval),
+    fmt_test(lb2_fear$stat,  lb2_fear$pval),
+    fmt_test(arch_fear$stat, arch_fear$pval)
+  ),
+  FearScaled_GARCH = c(
+    sprintf("%.4f", persistence_scaled),
+    sprintf("%.1f", halflife_scaled),
+    sprintf("%.6f", mean(sigma(fit_fear_raw))),
+    sprintf("%.4f", coef(fit_fear_raw)["gamma1"]),
+    sprintf("%.4f", coef(fit_fear_raw)["shape"]),
+    fmt_test(lb_scaled$stat,   lb_scaled$pval),
+    fmt_test(lb2_scaled$stat,  lb2_scaled$pval),
+    fmt_test(arch_scaled$stat, arch_scaled$pval)
+  ),
+  VIX_Fear_GARCH = c(
+    sprintf("%.4f", persistence_both),
+    sprintf("%.1f", halflife_both),
+    sprintf("%.6f", mean(sigma(fit_both))),
+    sprintf("%.4f", coef(fit_both)["gamma1"]),
+    sprintf("%.4f", coef(fit_both)["shape"]),
+    fmt_test(lb_both$stat,   lb_both$pval),
+    fmt_test(lb2_both$stat,  lb2_both$pval),
+    fmt_test(arch_both$stat, arch_both$pval)
+  )
+)
+
+write.csv(diagnostics_table, "table4_diagnostics.csv", row.names = FALSE)
+print(diagnostics_table)
+cat("\n* p < 0.05  ** p < 0.01\n")
+cat("LB = Ljung-Box (lag 10). ARCH LM = Engle's LM test (lag 5).\n")
+cat("H0 for both tests: no remaining serial correlation / ARCH effects.\n")
+cat("Failing to reject H0 (high p-value) means the model is well-specified.\n")
+cat("\nTable 4 saved: table4_diagnostics.csv\n")
+
+
+# ============================================================================
+# TABLE 5: DESCRIPTIVE STATISTICS
+# ============================================================================
+
+cat("\nCreating Table 5: Descriptive Statistics...\n")
+
+desc_stats <- data.frame(
+  Variable = c("XLK Log Returns", "XLK Log Returns", "VIX (Scaled)", "VIX (Scaled)"),
+  Period   = c("Training", "Test", "Training", "Test"),
+  N        = c(nrow(train), nrow(test), nrow(train), nrow(test)),
+  Mean     = round(c(mean(train$Log_Return), mean(test$Log_Return),
+                     mean(train$VIXScaled),  mean(test$VIXScaled)), 6),
+  SD       = round(c(sd(train$Log_Return), sd(test$Log_Return),
+                     sd(train$VIXScaled),  sd(test$VIXScaled)), 6),
+  Min      = round(c(min(train$Log_Return), min(test$Log_Return),
+                     min(train$VIXScaled),  min(test$VIXScaled)), 6),
+  Max      = round(c(max(train$Log_Return), max(test$Log_Return),
+                     max(train$VIXScaled),  max(test$VIXScaled)), 6),
+  Skewness = round(c(skewness(train$Log_Return), skewness(test$Log_Return),
+                     skewness(train$VIXScaled),  skewness(test$VIXScaled)), 4),
+  Kurtosis = round(c(kurtosis(train$Log_Return), kurtosis(test$Log_Return),
+                     kurtosis(train$VIXScaled),  kurtosis(test$VIXScaled)), 4)
+)
+
+write.csv(desc_stats, "table5_descriptive_stats.csv", row.names = FALSE)
+print(desc_stats)
+cat("\nTable 5 saved: table5_descriptive_stats.csv\n")
+
+
+# ============================================================================
+# IN-SAMPLE VISUALIZATIONS
+# ============================================================================
+
+cat("\nGenerating in-sample visualizations...\n")
+
+vol_baseline <- as.numeric(sigma(fit_baseline))
+vol_vix      <- as.numeric(sigma(fit_vix))
+
+in_sample_data <- data.frame(
+  Date         = train$Date,
+  Returns      = train$Log_Return,
+  Vol_Baseline = vol_baseline,
+  Vol_VIX      = vol_vix,
+  VIX          = train$VIXScaled
+)
+
+# Plot 1: Conditional volatility comparison
+p1 <- ggplot(in_sample_data, aes(x = Date)) +
+  geom_line(aes(y = Vol_Baseline, color = "Baseline GJR-GARCH"), alpha = 0.7, linewidth = 0.5) +
+  geom_line(aes(y = Vol_VIX, color = "VIX-GARCH"), alpha = 0.7, linewidth = 0.5) +
+  labs(
+    title    = "In-Sample Conditional Volatility: Baseline vs VIX-GARCH",
+    subtitle = "Training period",
+    x = "Date", y = "Conditional Volatility", color = "Model"
+  ) +
+  scale_color_manual(values = c("Baseline GJR-GARCH" = "#2166AC", "VIX-GARCH" = "#D6604D")) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom")
+
+ggsave("plot1_volatility_comparison.png", p1, width = 12, height = 5, dpi = 300)
+print(p1)
+
+# Plot 2: Returns with VIX-GARCH volatility bands
+p2 <- ggplot(in_sample_data, aes(x = Date)) +
+  geom_ribbon(aes(ymin = -2 * Vol_VIX, ymax = 2 * Vol_VIX),
+              fill = "#D6604D", alpha = 0.2) +
+  geom_line(aes(y = Returns), color = "black", alpha = 0.5, linewidth = 0.3) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  labs(
+    title = "XLK Log Returns with +/- 2 Sigma Bands (VIX-GARCH)",
+    x = "Date", y = "Log Return"
+  ) +
+  theme_minimal(base_size = 12)
+
+ggsave("plot2_returns_bands.png", p2, width = 12, height = 5, dpi = 300)
+print(p2)
+
+# Plot 3: Conditional volatility vs VIX
+p3 <- ggplot(in_sample_data, aes(x = VIX, y = Vol_VIX)) +
+  geom_point(alpha = 0.3, color = "#2166AC", size = 0.8) +
+  geom_smooth(method = "lm", se = TRUE, color = "#D6604D", fill = "#D6604D", alpha = 0.2) +
+  labs(
+    title    = "Conditional Volatility vs VIX (Scaled)",
+    subtitle = "Positive relationship validates VIX as a variance predictor",
+    x = "VIX (Scaled)", y = "Conditional Volatility (VIX-GARCH)"
+  ) +
+  theme_minimal(base_size = 12)
+
+ggsave("plot3_volatility_vs_vix.png", p3, width = 8, height = 5, dpi = 300)
+print(p3)
+
+# Plot 4: Model comparison by AIC (all 5 models)
+aic_data <- data.frame(
+  Model = c("Baseline", "VIX-GARCH", "FearOrth-GARCH",
+            "FearScaled-GARCH", "VIX+Fear-GARCH"),
+  AIC   = c(baseline_aic, vix_aic, fear_aic, fear_raw_aic, both_aic)
+)
+
+p4 <- ggplot(aic_data, aes(x = reorder(Model, AIC), y = AIC)) +
+  geom_col(fill = "#2166AC", alpha = 0.8, width = 0.6) +
+  geom_text(aes(label = sprintf("%.4f", AIC)), hjust = -0.1, size = 3.5) +
+  coord_flip() +
+  labs(
+    title    = "Model Comparison by AIC",
+    subtitle = "Lower AIC is better",
+    x = NULL, y = "AIC"
+  ) +
+  theme_minimal(base_size = 12)
+
+ggsave("plot4_model_aic.png", p4, width = 9, height = 5, dpi = 300)
+print(p4)
+
+# Plot 5: LRT p-values (all 5 comparisons including FearScaled)
+lrt_plot_data <- data.frame(
+  Comparison = c("Baseline vs VIX", "Baseline vs FearOrth",
+                  "Baseline vs FearScaled", "VIX vs VIX+Fear",
+                  "Baseline vs VIX+Fear"),
+  P_Value    = c(lrt_vix$p_value, lrt_fear$p_value, lrt_fear_raw$p_value,
+                  lrt_both_vs_vix$p_value, lrt_both_vs_base$p_value)
+)
+
+# Cap p-values at 1.0 for display (FearOrth numerical artefact)
+lrt_plot_data$P_Value_Display <- pmin(lrt_plot_data$P_Value, 1.0)
+
+p5 <- ggplot(lrt_plot_data, aes(x = reorder(Comparison, P_Value_Display),
+                                  y = P_Value_Display)) +
+  geom_col(fill = "#4DAC26", alpha = 0.8, width = 0.6) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red", linewidth = 0.8) +
+  geom_hline(yintercept = 0.01, linetype = "dotted", color = "darkred", linewidth = 0.8) +
+  geom_text(aes(label = sprintf("p = %.4f", P_Value_Display)), hjust = -0.1, size = 3.5) +
+  coord_flip() +
+  labs(
+    title    = "Likelihood Ratio Test p-Values by Comparison",
+    subtitle = "Dashed line: 5% threshold. Dotted line: 1% threshold.",
+    x = NULL, y = "p-value"
+  ) +
+  theme_minimal(base_size = 12)
+
+ggsave("plot5_lrt_pvalues.png", p5, width = 10, height = 5, dpi = 300)
+print(p5)
+
+cat("\nAll visualizations and tables complete.\n")
+cat("\nSaved files:\n")
+cat("  table1_model_parameters.csv\n")
+cat("  table2_model_fit.csv\n")
+cat("  table3_lrt_results.csv\n")
+cat("  table4_diagnostics.csv\n")
+cat("  table5_descriptive_stats.csv\n")
+cat("  plot1_volatility_comparison.png\n")
+cat("  plot2_returns_bands.png\n")
+cat("  plot3_volatility_vs_vix.png\n")
+cat("  plot4_model_aic.png\n")
+cat("  plot5_lrt_pvalues.png\n")
+
+
+
+```
+
+```{r}
+# ============================================================================
+# OUT-OF-SAMPLE FORECASTING WITH DM TESTS AND REGRESSOR VERIFICATION
+# ============================================================================
+
+library(rugarch)
+library(readr)
+library(car)
+library(forecast)
+
+test <- read_csv("test_data_for_R.csv")
+cat("\nTest data loaded:", nrow(test), "observations\n")
+
+n_test <- nrow(test)
+
+full_data <- rbind(
+  train[, c("Date", "Log_Return", "VIXScaled", "FearOrth", "FearScaled")],
+  test[,  c("Date", "Log_Return", "VIXScaled", "FearOrth", "FearScaled")]
+)
+
+cat("\n========================================\n")
+cat("OUT-OF-SAMPLE FORECASTING\n")
+cat("========================================\n")
+
+
+# ============================================================================
+# ROLLING FORECAST: BASELINE
+# ============================================================================
+
+cat("\nGenerating rolling 1-step forecasts: Baseline...\n")
+
+spec_roll_base <- ugarchspec(
+  variance.model     = list(model = "gjrGARCH", garchOrder = c(1, 1)),
+  mean.model         = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "std"
+)
+
+roll_base <- ugarchroll(
+  spec            = spec_roll_base,
+  data            = full_data$Log_Return,
+  n.ahead         = 1,
+  forecast.length = n_test,
+  refit.every     = 50,
+  refit.window    = "expanding",
+  solver          = "hybrid",
+  calculate.VaR   = FALSE
+)
+
+cat("Baseline rolling forecast complete.\n")
+
+
+# ============================================================================
+# ROLLING FORECAST: VIX-GARCH
+# ============================================================================
+
+cat("\nGenerating rolling 1-step forecasts: VIX...\n")
+
+spec_roll_vix <- ugarchspec(
+  variance.model = list(
+    model               = "gjrGARCH",
+    garchOrder          = c(1, 1),
+    external.regressors = as.matrix(full_data$VIXScaled)
+  ),
+  mean.model         = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "std"
+)
+
+roll_vix <- ugarchroll(
+  spec            = spec_roll_vix,
+  data            = full_data$Log_Return,
+  n.ahead         = 1,
+  forecast.length = n_test,
+  refit.every     = 50,
+  refit.window    = "expanding",
+  solver          = "hybrid",
+  calculate.VaR   = FALSE
+)
+
+cat("VIX rolling forecast complete.\n")
+
+
+# ============================================================================
+# ROLLING FORECAST: FEARORTH
+# ============================================================================
+
+cat("\nGenerating rolling 1-step forecasts: FearOrth...\n")
+
+spec_roll_fear <- ugarchspec(
+  variance.model = list(
+    model               = "gjrGARCH",
+    garchOrder          = c(1, 1),
+    external.regressors = as.matrix(full_data$FearOrth)
+  ),
+  mean.model         = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "std"
+)
+
+roll_fear <- ugarchroll(
+  spec            = spec_roll_fear,
+  data            = full_data$Log_Return,
+  n.ahead         = 1,
+  forecast.length = n_test,
+  refit.every     = 50,
+  refit.window    = "expanding",
+  solver          = "hybrid",
+  calculate.VaR   = FALSE
+)
+
+cat("FearOrth rolling forecast complete.\n")
+
+
+# ============================================================================
+# ROLLING FORECAST: FEARSCALED
+# ============================================================================
+
+cat("\nGenerating rolling 1-step forecasts: FearScaled...\n")
+
+spec_roll_scaled <- ugarchspec(
+  variance.model = list(
+    model               = "gjrGARCH",
+    garchOrder          = c(1, 1),
+    external.regressors = as.matrix(full_data$FearScaled)
+  ),
+  mean.model         = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "std"
+)
+
+roll_scaled <- ugarchroll(
+  spec            = spec_roll_scaled,
+  data            = full_data$Log_Return,
+  n.ahead         = 1,
+  forecast.length = n_test,
+  refit.every     = 50,
+  refit.window    = "expanding",
+  solver          = "hybrid",
+  calculate.VaR   = FALSE
+)
+
+cat("FearScaled rolling forecast complete.\n")
+
+
+# ============================================================================
+# ROLLING FORECAST: VIX + FEARORTH
+# ============================================================================
+
+cat("\nGenerating rolling 1-step forecasts: VIX+FearOrth...\n")
+
+spec_roll_both <- ugarchspec(
+  variance.model = list(
+    model               = "gjrGARCH",
+    garchOrder          = c(1, 1),
+    external.regressors = as.matrix(full_data[, c("VIXScaled", "FearOrth")])
+  ),
+  mean.model         = list(armaOrder = c(0, 0), include.mean = TRUE),
+  distribution.model = "std"
+)
+
+roll_both <- ugarchroll(
+  spec            = spec_roll_both,
+  data            = full_data$Log_Return,
+  n.ahead         = 1,
+  forecast.length = n_test,
+  refit.every     = 50,
+  refit.window    = "expanding",
+  solver          = "hybrid",
+  calculate.VaR   = FALSE
+)
+
+cat("VIX+FearOrth rolling forecast complete.\n")
+
+
+# ============================================================================
+# EXTRACT FORECASTS
+# ============================================================================
+
+results_base   <- as.data.frame(roll_base)
+results_vix    <- as.data.frame(roll_vix)
+results_fear   <- as.data.frame(roll_fear)
+results_scaled <- as.data.frame(roll_scaled)
+results_both   <- as.data.frame(roll_both)
+
+fc_var_base   <- results_base$Sigma^2
+fc_var_vix    <- results_vix$Sigma^2
+fc_var_fear   <- results_fear$Sigma^2
+fc_var_scaled <- results_scaled$Sigma^2
+fc_var_both   <- results_both$Sigma^2
+
+actual_returns    <- test$Log_Return
+actual_variance   <- actual_returns^2
+actual_volatility <- abs(actual_returns)
+
+
+# ============================================================================
+# REGRESSOR VERIFICATION
+# ============================================================================
+
+cat("\n========================================\n")
+cat("REGRESSOR INCORPORATION VERIFICATION\n")
+cat("========================================\n")
+
+corr_base_vix <- cor(fc_var_base, fc_var_vix)
+max_abs_diff  <- max(abs(fc_var_base - fc_var_vix))
+mean_abs_diff <- mean(abs(fc_var_base - fc_var_vix))
+
+cat(sprintf("Correlation between Baseline and VIX forecasts: %.6f\n", corr_base_vix))
+cat(sprintf("Max absolute difference:                        %.10f\n", max_abs_diff))
+cat(sprintf("Mean absolute difference:                       %.10f\n", mean_abs_diff))
+
+if (max_abs_diff < 1e-10) {
+  cat("\nWARNING: Forecasts are effectively identical.\n")
+  cat("VIX regressors are NOT being incorporated in ugarchroll.\n")
+  stop("Regressor verification failed. Rolling forecast is invalid.")
+} else {
+  cat("\nVERIFICATION PASSED: VIX and Baseline forecasts differ.\n")
+  cat("Exogenous regressors are being correctly incorporated.\n")
+}
+
+
+# ============================================================================
+# EVALUATION FUNCTION
+# ============================================================================
+
+evaluate_forecast <- function(actual_var, forecast_var, label) {
+
+  valid_idx <- !is.na(forecast_var) & is.finite(forecast_var) & forecast_var > 0
+  cat(sprintf("\n--- %s ---\n", label))
+  cat(sprintf("  Valid forecasts: %d / %d\n", sum(valid_idx), length(forecast_var)))
+
+  av <- actual_var[valid_idx]
+  fv <- forecast_var[valid_idx]
+
+  mse   <- mean((av - fv)^2)
+  rmse  <- sqrt(mse)
+  mae   <- mean(abs(av - fv))
+  r2    <- 1 - sum((av - fv)^2) / sum((av - mean(av))^2)
+  qlike <- mean(fv / av + log(av / fv) - 1)
+  corr  <- cor(av, fv)
+
+  cat(sprintf("  MSE:         %.10f\n", mse))
+  cat(sprintf("  RMSE:        %.10f\n", rmse))
+  cat(sprintf("  MAE:         %.10f\n", mae))
+  cat(sprintf("  R-squared:   %.4f\n",  r2))
+  cat(sprintf("  QLIKE:       %.6f\n",  qlike))
+  cat(sprintf("  Correlation: %.4f\n",  corr))
+
+  mz_reg     <- lm(av ~ fv)
+  mz_summary <- summary(mz_reg)
+  intercept  <- coef(mz_summary)[1, 1]
+  slope      <- coef(mz_summary)[2, 1]
+  p_int      <- coef(mz_summary)[1, 4]
+  p_slope    <- coef(mz_summary)[2, 4]
+
+  cat(sprintf("\n  Mincer-Zarnowitz Regression:\n"))
+  cat(sprintf("    Intercept: %.8f (p = %.4f)\n", intercept, p_int))
+  cat(sprintf("    Slope:     %.4f         (p = %.4f)\n", slope, p_slope))
+  cat(sprintf("    R-squared: %.4f\n", mz_summary$r.squared))
+
+  mz_ftest <- linearHypothesis(mz_reg, c("(Intercept) = 0", "fv = 1"))
+  f_stat   <- mz_ftest$F[2]
+  f_pval   <- mz_ftest$`Pr(>F)`[2]
+  cat(sprintf("    Joint F-test (H0: alpha=0, beta=1): F = %.4f, p = %.4f\n", f_stat, f_pval))
+  if (f_pval > 0.05) {
+    cat("    Forecasts are unbiased (fail to reject H0)\n")
+  } else {
+    cat("    Forecasts are biased (reject H0)\n")
+  }
+
+  return(invisible(list(
+    mse = mse, rmse = rmse, mae = mae, r2 = r2,
+    qlike = qlike, corr = corr,
+    mz_intercept = intercept, mz_slope = slope,
+    mz_r2 = mz_summary$r.squared,
+    mz_f = f_stat, mz_fp = f_pval,
+    loss_mse   = (av - fv)^2,
+    loss_qlike = fv / av + log(av / fv) - 1,
+    valid_n    = sum(valid_idx)
+  )))
+}
+
+
+# ============================================================================
+# RUN EVALUATION
+# ============================================================================
+
+cat("\n========================================\n")
+cat("FORECAST EVALUATION\n")
+cat("========================================\n")
+
+metrics_base   <- evaluate_forecast(actual_variance, fc_var_base,   "Baseline")
+metrics_vix    <- evaluate_forecast(actual_variance, fc_var_vix,    "VIX")
+metrics_fear   <- evaluate_forecast(actual_variance, fc_var_fear,   "FearOrth")
+metrics_scaled <- evaluate_forecast(actual_variance, fc_var_scaled, "FearScaled")
+metrics_both   <- evaluate_forecast(actual_variance, fc_var_both,   "VIX+FearOrth")
+
+
+# ============================================================================
+# DIEBOLD-MARIANO TESTS
+# ============================================================================
+
+cat("\n========================================\n")
+cat("DIEBOLD-MARIANO TESTS\n")
+cat("========================================\n")
+
+cat("H0: No difference in forecast accuracy between the two models.\n")
+cat("Negative DM statistic: first model is more accurate.\n\n")
+
+run_dm <- function(loss1, loss2, label1, label2) {
+  dm <- dm.test(loss1, loss2, alternative = "two.sided", h = 1, power = 2)
+  cat(sprintf("--- %s vs %s ---\n", label1, label2))
+  cat(sprintf("  DM statistic: %.4f\n", dm$statistic))
+  cat(sprintf("  p-value:      %.4f\n", dm$p.value))
+  if (dm$p.value < 0.05) {
+    if (dm$statistic < 0) {
+      cat(sprintf("  Result: %s is significantly more accurate (p < 0.05)\n\n", label1))
+    } else {
+      cat(sprintf("  Result: %s is significantly more accurate (p < 0.05)\n\n", label2))
+    }
+  } else {
+    cat(sprintf("  Result: No significant difference in accuracy (p = %.4f)\n\n", dm$p.value))
+  }
+  return(invisible(list(stat = as.numeric(dm$statistic), pval = dm$p.value)))
+}
+
+cat("=== MSE Loss ===\n")
+dm_base_vix_mse    <- run_dm(metrics_base$loss_mse,   metrics_vix$loss_mse,    "Baseline", "VIX")
+dm_base_fear_mse   <- run_dm(metrics_base$loss_mse,   metrics_fear$loss_mse,   "Baseline", "FearOrth")
+dm_base_scaled_mse <- run_dm(metrics_base$loss_mse,   metrics_scaled$loss_mse, "Baseline", "FearScaled")
+dm_base_both_mse   <- run_dm(metrics_base$loss_mse,   metrics_both$loss_mse,   "Baseline", "VIX+FearOrth")
+dm_vix_both_mse    <- run_dm(metrics_vix$loss_mse,    metrics_both$loss_mse,   "VIX",      "VIX+FearOrth")
+
+cat("=== QLIKE Loss ===\n")
+dm_base_vix_ql    <- run_dm(metrics_base$loss_qlike,   metrics_vix$loss_qlike,    "Baseline", "VIX")
+dm_base_fear_ql   <- run_dm(metrics_base$loss_qlike,   metrics_fear$loss_qlike,   "Baseline", "FearOrth")
+dm_base_scaled_ql <- run_dm(metrics_base$loss_qlike,   metrics_scaled$loss_qlike, "Baseline", "FearScaled")
+dm_base_both_ql   <- run_dm(metrics_base$loss_qlike,   metrics_both$loss_qlike,   "Baseline", "VIX+FearOrth")
+dm_vix_both_ql    <- run_dm(metrics_vix$loss_qlike,    metrics_both$loss_qlike,   "VIX",      "VIX+FearOrth")
+
+
+# ============================================================================
+# SUMMARY TABLES
+# ============================================================================
+
+cat("\n========================================\n")
+cat("OUT-OF-SAMPLE SUMMARY TABLE\n")
+cat("========================================\n")
+
+oos_table <- data.frame(
+  Model = c("Baseline", "VIX", "FearOrth", "FearScaled", "VIX+FearOrth"),
+  MSE   = round(c(metrics_base$mse,   metrics_vix$mse,   metrics_fear$mse,
+                  metrics_scaled$mse, metrics_both$mse), 10),
+  RMSE  = round(c(metrics_base$rmse,  metrics_vix$rmse,  metrics_fear$rmse,
+                  metrics_scaled$rmse, metrics_both$rmse), 10),
+  MAE   = round(c(metrics_base$mae,   metrics_vix$mae,   metrics_fear$mae,
+                  metrics_scaled$mae, metrics_both$mae), 10),
+  R2    = round(c(metrics_base$r2,    metrics_vix$r2,    metrics_fear$r2,
+                  metrics_scaled$r2,  metrics_both$r2), 4),
+  QLIKE = round(c(metrics_base$qlike, metrics_vix$qlike, metrics_fear$qlike,
+                  metrics_scaled$qlike, metrics_both$qlike), 6),
+  Correlation = round(c(metrics_base$corr, metrics_vix$corr, metrics_fear$corr,
+                        metrics_scaled$corr, metrics_both$corr), 4),
+  MZ_Slope = round(c(metrics_base$mz_slope, metrics_vix$mz_slope, metrics_fear$mz_slope,
+                     metrics_scaled$mz_slope, metrics_both$mz_slope), 4),
+  MZ_R2    = round(c(metrics_base$mz_r2, metrics_vix$mz_r2, metrics_fear$mz_r2,
+                     metrics_scaled$mz_r2, metrics_both$mz_r2), 4)
+)
+
+print(oos_table)
+write.csv(oos_table, "table6_oos_evaluation.csv", row.names = FALSE)
+cat("\nTable 6 saved: table6_oos_evaluation.csv\n")
+
+dm_table <- data.frame(
+  Comparison = c(
+    "Baseline vs VIX (MSE)",        "Baseline vs FearOrth (MSE)",
+    "Baseline vs FearScaled (MSE)", "Baseline vs VIX+FearOrth (MSE)",
+    "VIX vs VIX+FearOrth (MSE)",   "Baseline vs VIX (QLIKE)",
+    "Baseline vs FearOrth (QLIKE)", "Baseline vs FearScaled (QLIKE)",
+    "Baseline vs VIX+FearOrth (QLIKE)", "VIX vs VIX+FearOrth (QLIKE)"
+  ),
+  DM_Stat = round(c(
+    dm_base_vix_mse$stat,    dm_base_fear_mse$stat,
+    dm_base_scaled_mse$stat, dm_base_both_mse$stat,
+    dm_vix_both_mse$stat,    dm_base_vix_ql$stat,
+    dm_base_fear_ql$stat,    dm_base_scaled_ql$stat,
+    dm_base_both_ql$stat,    dm_vix_both_ql$stat
+  ), 4),
+  P_Value = round(c(
+    dm_base_vix_mse$pval,    dm_base_fear_mse$pval,
+    dm_base_scaled_mse$pval, dm_base_both_mse$pval,
+    dm_vix_both_mse$pval,    dm_base_vix_ql$pval,
+    dm_base_fear_ql$pval,    dm_base_scaled_ql$pval,
+    dm_base_both_ql$pval,    dm_vix_both_ql$pval
+  ), 4),
+  Decision = ifelse(c(
+    dm_base_vix_mse$pval,    dm_base_fear_mse$pval,
+    dm_base_scaled_mse$pval, dm_base_both_mse$pval,
+    dm_vix_both_mse$pval,    dm_base_vix_ql$pval,
+    dm_base_fear_ql$pval,    dm_base_scaled_ql$pval,
+    dm_base_both_ql$pval,    dm_vix_both_ql$pval
+  ) < 0.05, "Significant", "Not Significant")
+)
+
+print(dm_table)
+write.csv(dm_table, "table7_dm_tests.csv", row.names = FALSE)
+cat("\nTable 7 saved: table7_dm_tests.csv\n")
+
+
+# ============================================================================
+# SAVE FORECAST RESULTS
+# ============================================================================
+
+forecast_results <- data.frame(
+  Date              = test$Date,
+  Actual_Return     = actual_returns,
+  Actual_Variance   = actual_variance,
+  Actual_Volatility = actual_volatility,
+  FC_Var_Baseline   = fc_var_base,
+  FC_Var_VIX        = fc_var_vix,
+  FC_Var_FearOrth   = fc_var_fear,
+  FC_Var_FearScaled = fc_var_scaled,
+  FC_Var_Both       = fc_var_both,
+  FC_Vol_Baseline   = sqrt(fc_var_base),
+  FC_Vol_VIX        = sqrt(fc_var_vix),
+  FC_Vol_FearOrth   = sqrt(fc_var_fear),
+  FC_Vol_FearScaled = sqrt(fc_var_scaled),
+  FC_Vol_Both       = sqrt(fc_var_both),
+  VIX_Value         = test$VIXScaled
+)
+
+write.csv(forecast_results, "forecast_results.csv", row.names = FALSE)
+cat("Forecast results saved: forecast_results.csv\n")
+
+cat("\n========================================\n")
+cat("OUT-OF-SAMPLE FORECASTING COMPLETE\n")
+cat("========================================\n")
+
+
+```
+```{r}
+# ============================================================================
+# FIGURE: OUT-OF-SAMPLE CONDITIONAL VOLATILITY — BASELINE VS VIX
+# ============================================================================
+
+library(ggplot2)
+
+plot_data <- data.frame(
+  Date            = as.Date(test$Date),
+  Baseline        = sqrt(fc_var_base),
+  VIX             = sqrt(fc_var_vix),
+  Actual          = actual_volatility
+)
+
+plot_long <- tidyr::pivot_longer(
+  plot_data,
+  cols      = c("Baseline", "VIX", "Actual"),
+  names_to  = "Series",
+  values_to = "Volatility"
+)
+
+plot_long$Series <- factor(plot_long$Series,
+                           levels = c("Actual", "Baseline", "VIX"))
+
+oos_vol_plot <- ggplot(plot_long, aes(x = Date, y = Volatility, colour = Series)) +
+  geom_line(data = subset(plot_long, Series == "Actual"),
+            alpha = 0.3, linewidth = 0.4) +
+  geom_line(data = subset(plot_long, Series != "Actual"),
+            linewidth = 0.7) +
+  scale_colour_manual(values = c("Actual" = "grey60",
+                                  "Baseline" = "#2166ac",
+                                  "VIX" = "#d6604d")) +
+  labs(
+    title    = "Out-of-Sample Conditional Volatility: Baseline vs VIX",
+    subtitle = "Test period: July 2021 – December 2023",
+    x        = "Date",
+    y        = "Conditional Volatility",
+    colour   = "Model"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom")
+
+ggsave("plot_oos_volatility_comparison.png", oos_vol_plot,
+       width = 10, height = 4.5, dpi = 300)
+cat("Figure 4 saved: plot_oos_volatility_comparison.png\n")
+
+```
+
+```{r}
+# ============================================================================
+# NYBLOM PARAMETER STABILITY TEST
+# ============================================================================
+
+cat("\n========================================\n")
+cat("NYBLOM STABILITY TESTS\n")
+cat("========================================\n")
+
+extract_nyblom <- function(fit, label) {
+  nb <- nyblom(fit)
+  joint_stat <- nb$JointStat
+  joint_cv5  <- nb$JointCritical[2]  # 5% critical value
+  joint_cv10 <- nb$JointCritical[1]  # 10% critical value
+  stable     <- ifelse(joint_stat < joint_cv5, "Pass", "Fail")
+  
+  cat(sprintf("\n--- %s ---\n", label))
+  cat(sprintf("  Joint statistic:        %.4f\n", joint_stat))
+  cat(sprintf("  Critical value (10%%):   %.4f\n", joint_cv10))
+  cat(sprintf("  Critical value (5%%):    %.4f\n", joint_cv5))
+  cat(sprintf("  Result (5%% level):      %s\n", stable))
+  
+  return(list(
+    label      = label,
+    joint_stat = round(joint_stat, 4),
+    cv10       = round(joint_cv10, 4),
+    cv5        = round(joint_cv5,  4),
+    stable     = stable
+  ))
+}
+
+nb_base   <- extract_nyblom(fit_baseline, "Baseline")
+nb_vix    <- extract_nyblom(fit_vix,      "VIX")
+nb_fear   <- extract_nyblom(fit_fear,     "FearOrth")
+nb_scaled <- extract_nyblom(fit_fear_raw, "FearScaled")
+nb_both   <- extract_nyblom(fit_both,     "VIX+FearOrth")
+
+nyblom_table <- data.frame(
+  Model          = c("Baseline", "VIX", "FearOrth", "FearScaled", "VIX+FearOrth"),
+  Joint_Stat     = c(nb_base$joint_stat, nb_vix$joint_stat, nb_fear$joint_stat,
+                     nb_scaled$joint_stat, nb_both$joint_stat),
+  CV_10pct       = c(nb_base$cv10, nb_vix$cv10, nb_fear$cv10,
+                     nb_scaled$cv10, nb_both$cv10),
+  CV_5pct        = c(nb_base$cv5, nb_vix$cv5, nb_fear$cv5,
+                     nb_scaled$cv5, nb_both$cv5),
+  Stable_5pct    = c(nb_base$stable, nb_vix$stable, nb_fear$stable,
+                     nb_scaled$stable, nb_both$stable)
+)
+
+print(nyblom_table)
+write.csv(nyblom_table, "table_nyblom.csv", row.names = FALSE)
+cat("\nNyblom table saved: table_nyblom.csv\n")
+
+
+```
+```{r}
+# ============================================================================
+# FIGURE: OUT-OF-SAMPLE CONDITIONAL VOLATILITY — BASELINE VS FEARORTH
+# ============================================================================
+
+plot_data_fear <- data.frame(
+  Date     = as.Date(test$Date),
+  Baseline = sqrt(fc_var_base),
+  FearOrth = sqrt(fc_var_fear),
+  Actual   = actual_volatility
+)
+
+plot_long_fear <- tidyr::pivot_longer(
+  plot_data_fear,
+  cols      = c("Baseline", "FearOrth", "Actual"),
+  names_to  = "Series",
+  values_to = "Volatility"
+)
+
+plot_long_fear$Series <- factor(plot_long_fear$Series,
+                                levels = c("Actual", "Baseline", "FearOrth"))
+
+oos_fear_plot <- ggplot(plot_long_fear, aes(x = Date, y = Volatility, colour = Series)) +
+  geom_line(data = subset(plot_long_fear, Series == "Actual"),
+            alpha = 0.3, linewidth = 0.4) +
+  geom_line(data = subset(plot_long_fear, Series != "Actual"),
+            linewidth = 0.7) +
+  scale_colour_manual(values = c("Actual"   = "grey60",
+                                  "Baseline" = "#2166ac",
+                                  "FearOrth" = "#4dac26")) +
+  labs(
+    title    = "Out-of-Sample Conditional Volatility: Baseline vs FearOrth",
+    subtitle = "Test period: July 2021 – December 2023",
+    x        = "Date",
+    y        = "Conditional Volatility",
+    colour   = "Model"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom")
+
+ggsave("plot_oos_volatility_fearorth.png", oos_fear_plot,
+       width = 10, height = 4.5, dpi = 300)
+cat("Figure saved: plot_oos_volatility_fearorth.png\n")
+
+```
+
+
