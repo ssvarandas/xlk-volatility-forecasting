@@ -16,6 +16,7 @@ install.packages("moments")
 install.packages("rugarch")
 install.packages("FinTS")
 install.packages("car")
+install.packages("entropy")
 ```
 
 
@@ -28,6 +29,7 @@ install.packages("car")
 library(rugarch)
 library(readr)
 
+setwd("/Users/simaovarandas/Desktop/DATA Thesis/R-Files")
 train <- read_csv("train_data_for_R.csv")
 
 cat("Training data loaded:", nrow(train), "observations\n")
@@ -324,14 +326,62 @@ cat("LRT results saved: lrt_results.csv\n")
 cat("\n========================================\n")
 cat("GJR-GARCH-X ESTIMATION AND TESTING COMPLETE\n")
 cat("========================================\n")
+```
 
+```{r}
+setwd("/Users/simaovarandas/Desktop/DATA Thesis/R-Files")
+
+library(readr)
+library(moments)
+
+train <- read_csv("train_data_for_R.csv")
+test <- read_csv("test_data_for_R.csv")
+
+desc_stats <- data.frame(
+  Variable = c("XLK Log Returns", "XLK Log Returns",
+               "VIX (Scaled)", "VIX (Scaled)",
+               "Fear & Greed (Scaled)", "Fear & Greed (Scaled)",
+               "Fear & Greed (Orthogonalised)", "Fear & Greed (Orthogonalised)"),
+  Period   = c("Training", "Test", "Training", "Test",
+               "Training", "Test", "Training", "Test"),
+  N        = c(nrow(train), nrow(test), nrow(train), nrow(test),
+               nrow(train), nrow(test), nrow(train), nrow(test)),
+  Mean     = round(c(mean(train$Log_Return), mean(test$Log_Return),
+                     mean(train$VIXScaled),  mean(test$VIXScaled),
+                     mean(train$FearScaled), mean(test$FearScaled),
+                     mean(train$FearOrth),   mean(test$FearOrth)), 4),
+  SD       = round(c(sd(train$Log_Return), sd(test$Log_Return),
+                     sd(train$VIXScaled),  sd(test$VIXScaled),
+                     sd(train$FearScaled), sd(test$FearScaled),
+                     sd(train$FearOrth),   sd(test$FearOrth)), 4),
+  Min      = round(c(min(train$Log_Return), min(test$Log_Return),
+                     min(train$VIXScaled),  min(test$VIXScaled),
+                     min(train$FearScaled), min(test$FearScaled),
+                     min(train$FearOrth),   min(test$FearOrth)), 4),
+  Max      = round(c(max(train$Log_Return), max(test$Log_Return),
+                     max(train$VIXScaled),  max(test$VIXScaled),
+                     max(train$FearScaled), max(test$FearScaled),
+                     max(train$FearOrth),   max(test$FearOrth)), 4),
+  Skewness = round(c(skewness(train$Log_Return), skewness(test$Log_Return),
+                     skewness(train$VIXScaled),  skewness(test$VIXScaled),
+                     skewness(train$FearScaled), skewness(test$FearScaled),
+                     skewness(train$FearOrth),   skewness(test$FearOrth)), 4),
+  Kurtosis = round(c(kurtosis(train$Log_Return), kurtosis(test$Log_Return),
+                     kurtosis(train$VIXScaled),  kurtosis(test$VIXScaled),
+                     kurtosis(train$FearScaled), kurtosis(test$FearScaled),
+                     kurtosis(train$FearOrth),   kurtosis(test$FearOrth)), 4)
+)
+
+write.csv(desc_stats, "table5_descriptive_stats.csv", row.names = FALSE)
 
 ```
+
 
 ```{r}
 # ============================================================================
 # VISUALIZATIONS AND SUMMARY TABLES
 # ============================================================================
+setwd("/Users/simaovarandas/Desktop/DATA Thesis/R-Files")
 
 library(ggplot2)
 library(moments)
@@ -358,7 +408,7 @@ param_table <- data.frame(
     sprintf("%.6f", coef(fit_baseline)["mu"]),
     sprintf("%.6f", coef(fit_baseline)["ar1"]),
     sprintf("%.2e", coef(fit_baseline)["omega"]),
-    sprintf("%.6f", coef(fit_baseline)["alpha1"]),
+    sprintf("%.2e", coef(fit_baseline)["alpha1"]),
     sprintf("%.6f", coef(fit_baseline)["beta1"]),
     sprintf("%.6f", coef(fit_baseline)["gamma1"]),
     "-", "-",
@@ -368,7 +418,7 @@ param_table <- data.frame(
     sprintf("%.6f", coef(fit_vix)["mu"]),
     sprintf("%.6f", coef(fit_vix)["ar1"]),
     sprintf("%.2e", coef(fit_vix)["omega"]),
-    sprintf("%.6f", coef(fit_vix)["alpha1"]),
+    sprintf("%.2e", coef(fit_vix)["alpha1"]),
     sprintf("%.6f", coef(fit_vix)["beta1"]),
     sprintf("%.6f", coef(fit_vix)["gamma1"]),
     sprintf("%.2e", coef(fit_vix)["vxreg1"]),
@@ -379,7 +429,7 @@ param_table <- data.frame(
     sprintf("%.6f", coef(fit_fear)["mu"]),
     sprintf("%.6f", coef(fit_fear)["ar1"]),
     sprintf("%.2e", coef(fit_fear)["omega"]),
-    sprintf("%.6f", coef(fit_fear)["alpha1"]),
+    sprintf("%.2e", coef(fit_fear)["alpha1"]),
     sprintf("%.6f", coef(fit_fear)["beta1"]),
     sprintf("%.6f", coef(fit_fear)["gamma1"]),
     "-",
@@ -390,7 +440,7 @@ param_table <- data.frame(
     sprintf("%.6f", coef(fit_fear_raw)["mu"]),
     sprintf("%.6f", coef(fit_fear_raw)["ar1"]),
     sprintf("%.2e", coef(fit_fear_raw)["omega"]),
-    sprintf("%.6f", coef(fit_fear_raw)["alpha1"]),
+    sprintf("%.2e", coef(fit_fear_raw)["alpha1"]),
     sprintf("%.6f", coef(fit_fear_raw)["beta1"]),
     sprintf("%.6f", coef(fit_fear_raw)["gamma1"]),
     "-",
@@ -401,7 +451,7 @@ param_table <- data.frame(
     sprintf("%.6f", coef(fit_both)["mu"]),
     sprintf("%.6f", coef(fit_both)["ar1"]),
     sprintf("%.2e", coef(fit_both)["omega"]),
-    sprintf("%.6f", coef(fit_both)["alpha1"]),
+    sprintf("%.2e", coef(fit_both)["alpha1"]),
     sprintf("%.6f", coef(fit_both)["beta1"]),
     sprintf("%.6f", coef(fit_both)["gamma1"]),
     sprintf("%.2e", coef(fit_both)["vxreg1"]),
@@ -605,26 +655,42 @@ cat("\nTable 4 saved: table4_diagnostics.csv\n")
 cat("\nCreating Table 5: Descriptive Statistics...\n")
 
 desc_stats <- data.frame(
-  Variable = c("XLK Log Returns", "XLK Log Returns", "VIX (Scaled)", "VIX (Scaled)"),
-  Period   = c("Training", "Test", "Training", "Test"),
-  N        = c(nrow(train), nrow(test), nrow(train), nrow(test)),
+  Variable = c("XLK Log Returns", "XLK Log Returns",
+               "VIX (Scaled)", "VIX (Scaled)",
+               "Fear & Greed (Scaled)", "Fear & Greed (Scaled)",
+               "Fear & Greed (Orthogonalised)", "Fear & Greed (Orthogonalised)"),
+  Period   = c("Training", "Test", "Training", "Test",
+               "Training", "Test", "Training", "Test"),
+  N        = c(nrow(train), nrow(test), nrow(train), nrow(test),
+               nrow(train), nrow(test), nrow(train), nrow(test)),
   Mean     = round(c(mean(train$Log_Return), mean(test$Log_Return),
-                     mean(train$VIXScaled),  mean(test$VIXScaled)), 6),
+                     mean(train$VIXScaled),  mean(test$VIXScaled),
+                     mean(train$FearScaled), mean(test$FearScaled),
+                     mean(train$FearOrth),   mean(test$FearOrth)), 6),
   SD       = round(c(sd(train$Log_Return), sd(test$Log_Return),
-                     sd(train$VIXScaled),  sd(test$VIXScaled)), 6),
+                     sd(train$VIXScaled),  sd(test$VIXScaled),
+                     sd(train$FearScaled), sd(test$FearScaled),
+                     sd(train$FearOrth),   sd(test$FearOrth)), 6),
   Min      = round(c(min(train$Log_Return), min(test$Log_Return),
-                     min(train$VIXScaled),  min(test$VIXScaled)), 6),
+                     min(train$VIXScaled),  min(test$VIXScaled),
+                     min(train$FearScaled), min(test$FearScaled),
+                     min(train$FearOrth),   min(test$FearOrth)), 6),
   Max      = round(c(max(train$Log_Return), max(test$Log_Return),
-                     max(train$VIXScaled),  max(test$VIXScaled)), 6),
+                     max(train$VIXScaled),  max(test$VIXScaled),
+                     max(train$FearScaled), max(test$FearScaled),
+                     max(train$FearOrth),   max(test$FearOrth)), 6),
   Skewness = round(c(skewness(train$Log_Return), skewness(test$Log_Return),
-                     skewness(train$VIXScaled),  skewness(test$VIXScaled)), 4),
+                     skewness(train$VIXScaled),  skewness(test$VIXScaled),
+                     skewness(train$FearScaled), skewness(test$FearScaled),
+                     skewness(train$FearOrth),   skewness(test$FearOrth)), 4),
   Kurtosis = round(c(kurtosis(train$Log_Return), kurtosis(test$Log_Return),
-                     kurtosis(train$VIXScaled),  kurtosis(test$VIXScaled)), 4)
+                     kurtosis(train$VIXScaled),  kurtosis(test$VIXScaled),
+                     kurtosis(train$FearScaled), kurtosis(test$FearScaled),
+                     kurtosis(train$FearOrth),   kurtosis(test$FearOrth)), 4)
 )
 
 write.csv(desc_stats, "table5_descriptive_stats.csv", row.names = FALSE)
 print(desc_stats)
-cat("\nTable 5 saved: table5_descriptive_stats.csv\n")
 
 
 # ============================================================================
@@ -757,6 +823,8 @@ cat("  plot5_lrt_pvalues.png\n")
 ```
 
 ```{r}
+setwd("/Users/simaovarandas/Desktop/DATA Thesis/R-Files")
+
 # ============================================================================
 # OUT-OF-SAMPLE FORECASTING WITH DM TESTS AND REGRESSOR VERIFICATION
 # ============================================================================
@@ -1193,11 +1261,12 @@ cat("========================================\n")
 
 
 ```
+
 ```{r}
 # ============================================================================
 # FIGURE: OUT-OF-SAMPLE CONDITIONAL VOLATILITY — BASELINE VS VIX
 # ============================================================================
-
+setwd("/Users/simaovarandas/Desktop/DATA Thesis/R-Files")
 library(ggplot2)
 
 plot_data <- data.frame(
@@ -1245,6 +1314,7 @@ cat("Figure 4 saved: plot_oos_volatility_comparison.png\n")
 # ============================================================================
 # NYBLOM PARAMETER STABILITY TEST
 # ============================================================================
+setwd("/Users/simaovarandas/Desktop/DATA Thesis/R-Files")
 
 cat("\n========================================\n")
 cat("NYBLOM STABILITY TESTS\n")
@@ -1296,11 +1366,12 @@ cat("\nNyblom table saved: table_nyblom.csv\n")
 
 
 ```
+
 ```{r}
 # ============================================================================
 # FIGURE: OUT-OF-SAMPLE CONDITIONAL VOLATILITY — BASELINE VS FEARORTH
 # ============================================================================
-
+setwd("/Users/simaovarandas/Desktop/DATA Thesis/R-Files")
 plot_data_fear <- data.frame(
   Date     = as.Date(test$Date),
   Baseline = sqrt(fc_var_base),
@@ -1341,5 +1412,55 @@ ggsave("plot_oos_volatility_fearorth.png", oos_fear_plot,
 cat("Figure saved: plot_oos_volatility_fearorth.png\n")
 
 ```
+
+```{r}
+setwd("/Users/simaovarandas/Desktop/DATA Thesis/R-Files")
+
+library(readr)
+library(entropy)
+
+train <- read_csv("train_data_for_R.csv")
+
+# ============================================================================
+# ENTROPY ANALYSIS: FEARSCALED VS FEARORTH ACROSS MULTIPLE BIN SIZES
+# ============================================================================
+
+bin_sizes <- c(10, 20, 30, 50, 100)
+
+results <- data.frame(
+  Bins             = integer(),
+  Entropy_FearScaled = numeric(),
+  Entropy_FearOrth   = numeric(),
+  Information_Loss   = numeric(),
+  Percentage_Loss    = numeric()
+)
+
+for (bins in bin_sizes) {
+  fs <- entropy(discretize(train$FearScaled, numBins = bins))
+  fo <- entropy(discretize(train$FearOrth,   numBins = bins))
+  loss    <- fs - fo
+  pct     <- (loss / fs) * 100
+  
+  cat(sprintf("Bins: %3d | FearScaled: %.4f nats | FearOrth: %.4f nats | Loss: %.4f nats (%.2f%%)\n",
+              bins, fs, fo, loss, pct))
+  
+  results <- rbind(results, data.frame(
+    Bins               = bins,
+    Entropy_FearScaled = round(fs,   4),
+    Entropy_FearOrth   = round(fo,   4),
+    Information_Loss   = round(loss, 4),
+    Percentage_Loss    = round(pct,  2)
+  ))
+}
+
+# Save to CSV for appendix
+write.csv(results, "appendix_entropy_analysis.csv", row.names = FALSE)
+cat("\nEntropy analysis saved: appendix_entropy_analysis.csv\n")
+
+# View in RStudio
+View(results)
+```
+
+
 
 
